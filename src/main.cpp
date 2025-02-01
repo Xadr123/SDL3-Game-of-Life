@@ -22,28 +22,29 @@ struct Application
 	SDL_Window *window{nullptr};
 	SDL_Renderer *renderer{nullptr};
 	SDL_AppResult status{SDL_APP_CONTINUE};
+	bool runSimulation{true};
 };
 
 // Grid for cells (initialized based on settings values)
-std::vector<std::vector<bool>> Grid{Rows, std::vector<bool>(Columns, 0)};
+std::vector<std::vector<Uint8>> Grid{Rows, std::vector<Uint8>(Columns, 0)};
 
 // Stores the new grid values.
-std::vector<std::vector<bool>> NewGrid{Rows, std::vector<bool>(Columns, 0)};
+std::vector<std::vector<Uint8>> NewGrid{Rows, std::vector<Uint8>(Columns, 0)};
 
 // Sets up a random grid of alive/dead cells. (0 == dead, 1 == alive)
-void initGrid(std::vector<std::vector<bool>> &grid)
+void initGrid(std::vector<std::vector<Uint8>> &grid)
 {
 	for (int r = 0; r < Rows; ++r)
 	{
 		for (int c = 0; c < Columns; ++c)
 		{
-			grid[r][c] = ((std::rand() % 100) < 10) ? true : false;
+			grid[r][c] = ((std::rand() % 100) < 10) ? 1 : 0;
 		}
 	}
 }
 
 // Draws the cells in the grid
-void drawGrid(SDL_Renderer *renderer, const std::vector<std::vector<bool>> &grid)
+void drawGrid(SDL_Renderer *renderer, const std::vector<std::vector<Uint8>> &grid)
 {
 	// Green cells
 	SDL_SetRenderDrawColor(renderer, 0, 200, 0, SDL_ALPHA_OPAQUE);
@@ -67,7 +68,7 @@ void drawGrid(SDL_Renderer *renderer, const std::vector<std::vector<bool>> &grid
 }
 
 // Returns the number of neighboring ALIVE cells
-Uint8 getNeighborCount(const std::vector<std::vector<bool>> &grid, int row, int column)
+Uint8 getNeighborCount(const std::vector<std::vector<Uint8>> &grid, int row, int column)
 {
 	Uint8 count = 0;
 	
@@ -98,7 +99,7 @@ Uint8 getNeighborCount(const std::vector<std::vector<bool>> &grid, int row, int 
 }
 
 // Check all cell neighbors and each cell accordingly
-void updateGrid(std::vector<std::vector<bool>> &grid, std::vector<std::vector<bool>> &newGrid)
+void updateGrid(std::vector<std::vector<Uint8>> &grid, std::vector<std::vector<Uint8>> &newGrid)
 {
 	for (int r = 0; r < Rows; ++r)
 	{
@@ -111,11 +112,11 @@ void updateGrid(std::vector<std::vector<bool>> &grid, std::vector<std::vector<bo
 				// Rule 1 and 2: Death on Underpopulation (less than 2 neigbors)/Overpopulation (more than 3 neighbors)
 				if (neighborCount < 2 || neighborCount > 3)
 				{
-					newGrid[r][c] = false;
+					newGrid[r][c] = 0;
 				}
 				else // Survive otherwise
 				{
-					newGrid[r][c] = true;
+					newGrid[r][c] = 1;
 				}
 			}
 			else
@@ -123,11 +124,11 @@ void updateGrid(std::vector<std::vector<bool>> &grid, std::vector<std::vector<bo
 				// Rule 3: Reproduce if 3 neighbors
 				if (neighborCount == 3)
 				{
-					newGrid[r][c] = true;
+					newGrid[r][c] = 1;
 				}
 				else // Death otherwise
 				{
-					newGrid[r][c] = false;
+					newGrid[r][c] = 0;
 				}
 			}
 		}
@@ -158,7 +159,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 	// Set up application data
 	*appstate = new Application{
 		.window = window,
-		.renderer = renderer};
+		.renderer = renderer,
+		};
 
 	// Random seed for initializing grid cells
 	std::srand(std::time(nullptr));
@@ -179,6 +181,17 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
 	{
 		app->status = SDL_APP_SUCCESS;
 	}
+	else if (event->type == SDL_EVENT_KEY_DOWN)
+	{
+		if (event->key.key == SDLK_SPACE)
+		{
+			app->runSimulation = !app->runSimulation;
+		} 
+		else if (event->key.key == SDLK_R)
+		{
+			initGrid(Grid);
+		}
+	}
 
 	return SDL_APP_CONTINUE;
 }
@@ -197,7 +210,11 @@ SDL_AppResult SDL_AppIterate(void *appstate)
 	SDL_RenderClear(app->renderer);
 
 	drawGrid(app->renderer, Grid);
-	updateGrid(Grid, NewGrid);
+
+	if (app->runSimulation)
+	{
+		updateGrid(Grid, NewGrid);
+	}
 
 	// Draw renderer to screen
 	SDL_RenderPresent(app->renderer);
